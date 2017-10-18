@@ -10,18 +10,12 @@ use rlstats::{RlStats, Player};
 use chrono::{TimeZone, Utc};
 use clap::{Arg, App, SubCommand};
 use prettytable::format::consts::FORMAT_CLEAN;
-use prettytable::cell::Cell;
 use prettytable::row::Row;
 use prettytable::Table;
 
-fn print_player(cl: &RlStats, p: Player) {
-    // Grab the playlist names since we'll need them later.
-    let pmap = cl.get_playlists()
-        .expect("Could not get playlists.")
-        .into_iter()
-        .map(|p| (p.id, p.name))
-        .collect::<HashMap<_, _>>();
+static UTC_FMT: &str = "%b %e %Y";
 
+fn print_player(cl: &RlStats, p: Player) {
     let mut info_table = table!(
         [FY -> "Display Name", p.display_name],
         [FY -> "UniqueID", p.unique_id],
@@ -30,21 +24,15 @@ fn print_player(cl: &RlStats, p: Player) {
     );
     info_table.set_format(*FORMAT_CLEAN);
     info_table.printstd();
-
     println!();
 
-    let requested = Utc.timestamp(p.last_requested, 0).format("%b %e %Y");
-    let created = Utc.timestamp(p.created_at, 0).format("%b %e %Y");
-    let updated = Utc.timestamp(p.updated_at, 0).format("%b %e %Y");
-    let next = Utc.timestamp(p.next_update_at, 0).format("%b %e %Y");
-
+    let u = |t| Utc.timestamp(t, 0).format(UTC_FMT);
     let mut time_table = table!(
         [FY => "Requested", "Created", "Updated", "Next Update"],
-        [requested, created, updated, next]
+        [u(p.last_requested), u(p.created_at), u(p.updated_at), u(p.next_update_at)]
     );
     time_table.set_format(*FORMAT_CLEAN);
     time_table.printstd();
-
     println!();
 
     let mut stat_table = table!(
@@ -58,30 +46,32 @@ fn print_player(cl: &RlStats, p: Player) {
     );
     stat_table.set_format(*FORMAT_CLEAN);
     stat_table.printstd();
-
     println!();
-
-    let mut season_table = table!(
-        [FY => "Ranked"],
-        [Fy => "Season", "Playlist", "Points", "Played", "Tier", "Division"]
-    );
-    season_table.set_format(*FORMAT_CLEAN);
-
-    for (season, playlists) in p.ranked_seasons {
-        for (idx, (playlist, info)) in playlists.iter().enumerate() {
-            let playlist = playlist.parse::<i32>().unwrap();
-
-            season_table.add_row(row![
-                if idx == 0 { cell!(season) } else { cell!("") },
-                pmap.get(&playlist).unwrap_or(&"Unknown".to_owned()),
-                info.rank_points.unwrap_or(0),
-                info.matches_played.unwrap_or(0),
-                info.tier.unwrap_or(0),
-                info.division.unwrap_or(0)
-            ]);
-        }
-    }
     
+    let pmap = cl.get_playlists()
+        .expect("Could not get playlists.")
+        .into_iter()
+        .map(|p| (p.id.to_string(), p.name))
+        .collect::<HashMap<_, _>>();
+
+    let mut season_table = Table::init(
+        p.ranked_seasons
+            .iter()
+            .flat_map(|(s, pls)| pls.iter().map(move |p| (s.as_str(), p)).enumerate())
+            .map(|(idx, (season, (playlist, info)))| {
+                row![
+                    if idx == 0 { season } else { "" },
+                    pmap.get(playlist).map(String::as_str).unwrap_or("Unknown"),
+                    info.rank_points.unwrap_or(0),
+                    info.matches_played.unwrap_or(0),
+                    info.tier.unwrap_or(0),
+                    info.division.unwrap_or(0)
+                ]
+            })
+            .collect()
+    );
+    season_table.set_titles(row![FY => "Season", "Playlist", "Points", "Played", "Tier", "Division"]);
+    season_table.set_format(*FORMAT_CLEAN);
     season_table.printstd();
 }
 
@@ -178,40 +168,38 @@ fn main() {
 
     match m.subcommand() {
         ("platforms", _) => {
-            let mut t = table!([FY => "ID", "Platform"]);
+            let mut t = Table::init(
+                cl.get_platforms()
+                    .expect("Could not get platforms.")
+                    .into_iter()
+                    .map(|p| row![p.id, p.name])
+                    .collect()
+            );
+            t.set_titles(row![FY => "ID", "Platform"]);
             t.set_format(*FORMAT_CLEAN);
-
-            cl.get_platforms()
-                .expect("Could not get platforms.")
-                .into_iter()
-                .for_each(|p| { t.add_row(row![p.id, p.name]); });
-
             t.printstd();
         }
         ("seasons", _) => {
-            let mut seasons = cl.get_seasons()
-                .expect("Could not get seasons.");
-            
+            let mut seasons = cl.get_seasons().expect("Could not get seasons.");
             seasons.sort_by(|a, b| a.season_id.cmp(&b.season_id));
 
-            let mut t = table!([FY => "Season", "Started", "Ended"]);
+            let mut t = Table::init(
+                seasons
+                    .into_iter()
+                    .map(|s| {
+                        let started = Utc.timestamp(s.started_on, 0).format("%b %e %Y");
+                        s.ended_on
+                            .map(|e| row![s.season_id, started, Utc.timestamp(e, 0).format("%b %e %Y")])
+                            .unwrap_or_else(|| row![FY => s.season_id, started, "Current"])
+                    })
+                    .collect()
+            );
+            t.set_titles(row![FY => "Season", "Started", "Ended"]);
             t.set_format(*FORMAT_CLEAN);
-
-            for s in seasons {
-                let started = Utc.timestamp(s.started_on, 0).format("%b %e %Y");
-                let ended = s.ended_on.map(|e| Utc.timestamp(e, 0).format("%b %e %Y"));
-
-                t.add_row(ended
-                    .map(|e| row![s.season_id, started, e])
-                    .unwrap_or_else(|| row![Fy => s.season_id, started, "Current"]));
-            }
-
             t.printstd();
         }
         ("playlists", _) => {
-            let mut platforms = cl.get_platforms()
-                .expect("Could not get platforms.");
-            
+            let mut platforms = cl.get_platforms().expect("Could not get platforms.");
             platforms.sort_by(|a, b| a.id.cmp(&b.id));
 
             // Condense the playlists.
@@ -226,48 +214,52 @@ fn main() {
                     }
                     (total + p.population.players, map)
                 });
+
+            let mut t = Table::init(
+                playlists
+                    .into_iter()
+                    .map(|(id, (name, total, pl))| {
+                        let mut r = row![id, name];
+                        platforms.iter()
+                            .for_each(|p| {
+                                r.add_cell(pl.get(&p.id)
+                                    .map(|p| cell!(r -> p))
+                                    .unwrap_or_else(|| cell!(r -> "N/A")))
+                            });
+                        r.add_cell(cell!(r -> total));
+                        r
+                    })
+                    .collect()
+            );
             
-            // Build the table.
-            let mut t = Table::new();
+            t.add_row({
+                let mut r = Row::new(vec![Default::default(); platforms.len() + 3]);
+                r[platforms.len() + 2] = cell!(FYr -> total);
+                r
+            });
+
+            t.set_titles({
+                let mut r = row![FY => "ID", "Playlist"];
+                platforms.into_iter()
+                    .for_each(|p| r.add_cell(cell!(FYr -> p.name)));
+                r.add_cell(cell!("Totals"));
+                r
+            });
+
             t.set_format(*FORMAT_CLEAN);
-
-            // Build categories.
-            {
-                let r = t.add_row(row![FY => "ID", "Playlist"]);
-                platforms.iter().for_each(|p| r.add_cell(cell!(FYr -> p.name)));
-                r.add_cell(cell!(FYr -> "Total"));
-            }
-
-            // Build rows.
-            playlists.into_iter()
-                .for_each(|(id, (name, total, pl))| {
-                    let r = t.add_row(row![id, name]);
-
-                    platforms.iter()
-                        .map(|p| pl.get(&p.id)
-                            .map(|p| cell!(r -> p))
-                            .unwrap_or_else(|| cell!(r -> "N/A")))
-                        .for_each(|c| r.add_cell(c));
-
-                    r.add_cell(cell!(r -> total));
-                });
-            
-
-            // Build final row.
-            t.add_row(Row::new(vec![Cell::default(); platforms.len() + 3]))
-                .set_cell(cell!(FYr -> total), platforms.len() + 2).unwrap();
-
             t.printstd();
         }
         ("tiers", _) => {
-            let mut t = table!([FY => "ID", "Name"]);
+            let mut t = Table::init(
+                cl.get_tiers()
+                    .expect("Could not get tiers.")
+                    .into_iter()
+                    .map(|t| row![t.id, t.name])
+                    .collect()
+            );
+            
+            t.set_titles(row![FY => "ID", "Name"]);
             t.set_format(*FORMAT_CLEAN);
-
-            cl.get_tiers()
-                .expect("Could not get tiers.")
-                .into_iter()
-                .for_each(|tier| { t.add_row(row![tier.id, tier.name]); });
-
             t.printstd();
         }
         ("player", Some(m)) => {
@@ -276,10 +268,7 @@ fn main() {
                 .and_then(|v| v.parse::<i32>().ok())
                 .unwrap();
 
-            let player = cl.get_player(id, platform_id)
-                .expect("Could not get player.");
-            
-            print_player(&cl, player);
+            print_player(&cl, cl.get_player(id, platform_id).expect("Could not get player."));
         }
         ("search", Some(m)) => {
             let name = m.value_of("name").unwrap();
@@ -299,23 +288,17 @@ fn main() {
                 // TODO: Fix.
                 print_player(&cl, resp.data.swap_remove(select));
             } else {
-                let mut t = table!([FY => "", "Display Name", "Platform", "UniqueID"]);
+                let mut t = Table::init(
+                    resp.data.into_iter()
+                        .enumerate()
+                        .map(|(idx, p)| row![idx, p.display_name, p.platform.name, p.unique_id])
+                        .collect()
+                );
+                let page = format!("Page {}", resp.page.unwrap_or(0));
+                let results = format!("{} of {} results", resp.results, resp.total_results);
+                t.add_row(row![FY => &page, "", "", &results]);
+                t.set_titles(row![FY => "", "Display Name", "Platform", "UniqueID"]);
                 t.set_format(*FORMAT_CLEAN);
-                
-                resp.data
-                    .iter()
-                    .enumerate()
-                    .for_each(|(idx, p)| {
-                        t.add_row(row![idx, p.display_name, p.platform.name, p.unique_id]);
-                    });
-
-                t.add_row(row![
-                    FY => &format!("Page {}", resp.page.unwrap_or(0)),
-                    "",
-                    "",
-                    &format!("{} of {} results", resp.results, resp.total_results)
-                ]);
-
                 t.printstd();
             }
         }
@@ -342,19 +325,16 @@ fn main() {
                             .and_then(|v| v.parse::<usize>().ok())
                             .unwrap(); // Has default.
 
-                        let mut t = table!([FY => "Rank", "Display Name", "Platform", "UniqueID"]);
-                        t.set_format(*FORMAT_CLEAN);
-
-                        // Builds rows.
-                        players.into_iter()
-                            .take(limit)
-                            .enumerate()
-                            .for_each(|(idx, p)| {
-                                t.add_row(row![idx, p.display_name, p.platform.name, p.unique_id]);
-                            });
-
+                        let mut t = Table::init(
+                            players.into_iter()
+                                .take(limit)
+                                .enumerate()
+                                .map(|(idx, p)| row![idx, p.display_name, p.platform.name, p.unique_id])
+                                .collect()
+                        );
                         t.add_row(row![FY => "", "", "", &format!("{} of 100 results", limit)]);
-
+                        t.set_titles(row![FY => "Rank", "Display Name", "Platform", "UniqueID"]);
+                        t.set_format(*FORMAT_CLEAN);
                         t.printstd();
                     }
                 }
@@ -387,28 +367,28 @@ fn main() {
                             _ => panic!("Invalid stat."),
                         };
 
-                        let mut t = table!([FY => "Rank", title, "Display Name", "Platform", "UniqueID"]);
-                        t.set_format(*FORMAT_CLEAN);
+                        let mut t = Table::init(
+                            players.into_iter()
+                                .take(limit)
+                                .enumerate()
+                                .map(|(idx, p)| {
+                                    let n = match stat {
+                                        "wins" => p.stats.wins,
+                                        "goals" => p.stats.goals,
+                                        "mvps" => p.stats.mvps,
+                                        "saves" => p.stats.saves,
+                                        "shots" => p.stats.shots,
+                                        "assists" => p.stats.assists,
+                                        _ => panic!("Invalid stat."),
+                                    };
 
-                        players.into_iter()
-                            .take(limit)
-                            .enumerate()
-                            .for_each(|(idx, p)| {
-                                let n = match stat {
-                                    "wins" => p.stats.wins,
-                                    "goals" => p.stats.goals,
-                                    "mvps" => p.stats.mvps,
-                                    "saves" => p.stats.saves,
-                                    "shots" => p.stats.shots,
-                                    "assists" => p.stats.assists,
-                                    _ => panic!("Invalid stat."),
-                                };
-
-                                t.add_row(row![idx, n, p.display_name, p.platform.name, p.unique_id]);
-                            });
-
-
+                                    row![idx, n, p.display_name, p.platform.name, p.unique_id]
+                                })
+                                .collect()
+                        );
                         t.add_row(row![FY => "", "", "", "", &format!("{} of 100 results", limit)]);
+                        t.set_titles(row![FY => "Rank", title, "Display Name", "Platform", "UniqueID"]);
+                        t.set_format(*FORMAT_CLEAN);
                         t.printstd();
                     }
                 }
