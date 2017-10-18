@@ -7,4 +7,4 @@ authors = ["Scetch <lucierbrandon@gmail.com>"]
 chrono = "0.4.0"
 clap = "2.26.2"
 prettytable-rs = "0.6.7"
-rlstats-rs = { git = "https://github.com/Scetch/rlstats-rs.git" }
+rlstats-rs = "0.1.0"

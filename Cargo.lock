@@ -5,7 +5,7 @@ dependencies = [
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.26.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "prettytable-rs 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "rlstats-rs 0.1.0 (git+https://github.com/Scetch/rlstats-rs.git)",
+ "rlstats-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -544,7 +544,7 @@ dependencies = [
 [[package]]
 name = "rlstats-rs"
 version = "0.1.0"
-source = "git+https://github.com/Scetch/rlstats-rs.git#b291daa488985059b4c5641351e9cc50febf4505"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "reqwest 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.15 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -965,7 +965,7 @@ dependencies = [
 "checksum redox_termios 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7e891cfe48e9100a70a3b6eb652fef28920c117d366339687bd5576160db0f76"
 "checksum relay 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f301bafeb60867c85170031bdb2fcf24c8041f33aee09e7b116a58d4e9f781c5"
 "checksum reqwest 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "5866613d84e2a39c0479a960bf2d0eff1fbfc934f02cd42b5c08c1e1efc5b1fd"
-"checksum rlstats-rs 0.1.0 (git+https://github.com/Scetch/rlstats-rs.git)" = "<none>"
+"checksum rlstats-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6e0a32add81b9ef2912f933af52ab0855284e9081c9350fe0eb64c77e3bd4cef"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 "checksum rustc_version 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "c5f5376ea5e30ce23c03eb77cbe4962b988deead10910c372b226388b594c084"
 "checksum safemem 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e27a8b19b835f7aea908818e871f5cc3a5a186550c30773be987e155e8163d8f"
