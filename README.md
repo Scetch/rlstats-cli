@@ -1,5 +1,7 @@
 # rlstats-cli
 
+**RocketLeagueStats has been shut down. [See more here](https://rocketleaguestats.com/)**
+
 A Rust CLI program for accessing data from [Rocket League Stats](https://rocketleaguestats.com/).
 
 A small sample of the kind of data that can be retrieved:
